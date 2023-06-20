@@ -128,7 +128,7 @@ func convert(w io.Writer, n Node, parents []string) {
 	// content, we check if it starts with "<", in which case it is probably
 	// another node.
 	content := strings.TrimSpace(string(n.Content))
-	if !strings.HasPrefix(content, "<") {
+	if content != "" && !strings.HasPrefix(content, "<") {
 		fmt.Fprint(w, "\tContent string `xml:\",innerxml\"`\n")
 	}
 
