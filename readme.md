@@ -36,7 +36,7 @@ This XML file:
 	<thisHasNoContent>
 		<SubNode/>
 	</thisHasNoContent>
-</TopLevel>``
+</TopLevel>
 ```
 
 will generate this Go code:
