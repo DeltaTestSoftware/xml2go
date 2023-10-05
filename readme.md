@@ -59,7 +59,7 @@ func main() {
 	fmt.Println("parsed node", node.Name)
 
 	fmt.Println("Go code:")
-	fmt.Println(converter.GenerateGoCodeString())
+	fmt.Println(converter.GenerateGoCodeString("main"))
 }
 ```
 

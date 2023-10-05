@@ -143,12 +143,15 @@ func (n *NodeDesc) containsAttribute(name string) bool {
 	return false
 }
 
-func (c *XMLConverter) GenerateGoCodeString() string {
-	return string(c.GenerateGoCodeBytes())
+func (c *XMLConverter) GenerateGoCodeString(packageName string) string {
+	return string(c.GenerateGoCodeBytes(packageName))
 }
 
-func (c *XMLConverter) GenerateGoCodeBytes() []byte {
+func (c *XMLConverter) GenerateGoCodeBytes(packageName string) []byte {
 	var buf bytes.Buffer
+	if packageName != "" {
+		fmt.Fprintf(&buf, "package %s\n\nimport \"encoding/xml\"\n\n", packageName)
+	}
 	for _, child := range c.root.Children {
 		c.generate(&buf, child)
 	}
@@ -160,8 +163,8 @@ func (c *XMLConverter) GenerateGoCodeBytes() []byte {
 	return code
 }
 
-func (c *XMLConverter) GenerateGoCodeWriter(w io.Writer) error {
-	code := c.GenerateGoCodeBytes()
+func (c *XMLConverter) GenerateGoCodeWriter(packageName string, w io.Writer) error {
+	code := c.GenerateGoCodeBytes(packageName)
 	_, err := w.Write(code)
 	return err
 }

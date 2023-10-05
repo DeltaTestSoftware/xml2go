@@ -2,7 +2,6 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"os"
 
 	"github.com/DeltaTestSoftware/xml2go"
@@ -29,9 +28,5 @@ func run() error {
 		return err
 	}
 
-	if *packageName != "" {
-		fmt.Printf("package %s\n\nimport \"encoding/xml\"\n\n", *packageName)
-	}
-
-	return p.GenerateGoCodeWriter(os.Stdout)
+	return p.GenerateGoCodeWriter(*packageName, os.Stdout)
 }
