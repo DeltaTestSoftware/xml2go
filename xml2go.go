@@ -90,8 +90,10 @@ func (c *XMLConverter) parse(n node, parent *NodeDesc) *NodeDesc {
 	// content, we check if it starts with "<", in which case it is probably
 	// another node.
 	content := bytes.TrimSpace(n.Content)
-	child.HasCharacterData = len(content) > 0 &&
-		!bytes.HasPrefix(content, []byte{'<'})
+	if !child.HasCharacterData {
+		child.HasCharacterData = len(content) > 0 &&
+			!bytes.HasPrefix(content, []byte{'<'})
+	}
 
 	for _, attr := range n.Attrs {
 		name := attr.Name.Local
