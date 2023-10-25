@@ -12,15 +12,19 @@ import (
 )
 
 func New() *XMLConverter {
-	return &XMLConverter{}
+	return &XMLConverter{root: &NodeDesc{}}
 }
 
 type XMLConverter struct {
-	root NodeDesc
+	root *NodeDesc
 }
 
 func (c *XMLConverter) AllNodes() []*NodeDesc {
 	return c.root.Children
+}
+
+func Combine(a, b *XMLConverter) *XMLConverter {
+	return combine(a, b)
 }
 
 func (c *XMLConverter) ParseXMLString(data string) (*NodeDesc, error) {
@@ -45,7 +49,7 @@ func (c *XMLConverter) ParseXMLReader(r io.Reader) (*NodeDesc, error) {
 	if err != nil {
 		return nil, err
 	}
-	node := c.parse(n, &c.root)
+	node := c.parse(n, c.root)
 	node.Parent = nil
 	return node, nil
 }
@@ -125,18 +129,26 @@ type NodeDesc struct {
 }
 
 func (n *NodeDesc) getOrAddChild(name string) *NodeDesc {
-	for _, child := range n.Children {
-		if child.Name == name {
-			return child
-		}
+	i := n.getChildIndex(name)
+
+	if i == -1 {
+		n.Children = append(n.Children, &NodeDesc{
+			Parent: n,
+			Name:   name,
+		})
+		i = len(n.Children) - 1
 	}
 
-	child := &NodeDesc{
-		Parent: n,
-		Name:   name,
+	return n.Children[i]
+}
+
+func (n *NodeDesc) getChildIndex(name string) int {
+	for i, child := range n.Children {
+		if child.Name == name {
+			return i
+		}
 	}
-	n.Children = append(n.Children, child)
-	return child
+	return -1
 }
 
 func (n *NodeDesc) containsAttribute(name string) bool {
@@ -272,7 +284,7 @@ func goIdent(s string) string {
 	r := []rune(s)
 
 	// Remove digits from the start of the identifier.
-	for len(r) >= 0 && unicode.IsDigit(r[0]) {
+	for len(r) > 0 && unicode.IsDigit(r[0]) {
 		r = r[1:]
 	}
 
@@ -282,4 +294,67 @@ func goIdent(s string) string {
 	}
 
 	return string(r)
+}
+
+func combine(a, b *XMLConverter) *XMLConverter {
+	c := &XMLConverter{
+		root: combineNodes(
+			copyNode(a.root),
+			copyNode(b.root),
+		),
+	}
+	for _, child := range c.root.Children {
+		child.Parent = nil
+	}
+	return c
+}
+
+func copyNode(n *NodeDesc) *NodeDesc {
+	m := &NodeDesc{
+		Parent:           nil, // This is not part of n's Parent's children.
+		Name:             n.Name,
+		IsArray:          n.IsArray,
+		HasCharacterData: n.HasCharacterData,
+	}
+
+	m.Attributes = make([]string, len(n.Attributes))
+	copy(m.Attributes, n.Attributes)
+
+	m.Children = make([]*NodeDesc, len(n.Children))
+	for i := range m.Children {
+		m.Children[i] = copyNode(n.Children[i])
+		m.Children[i].Parent = m
+	}
+
+	return m
+}
+
+func combineNodes(a, b *NodeDesc) *NodeDesc {
+	if a.Name != b.Name {
+		panic("developer error: only combineNodes with equal Name")
+	}
+
+	// We change a, integrating b into it.
+
+	a.IsArray = a.IsArray || b.IsArray
+	a.HasCharacterData = a.HasCharacterData || b.HasCharacterData
+
+	for _, attrB := range b.Attributes {
+		if !a.containsAttribute(attrB) {
+			a.Attributes = append(a.Attributes, attrB)
+		}
+	}
+
+	for _, childB := range b.Children {
+		i := a.getChildIndex(childB.Name)
+		if i == -1 {
+			a.Children = append(a.Children, childB)
+			childB.Parent = a
+		} else {
+			a.Children[i] = combineNodes(a.Children[i], childB)
+			a.Children[i].Parent = a
+		}
+	}
+
+	return a
 }
