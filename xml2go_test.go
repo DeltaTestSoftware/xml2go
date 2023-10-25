@@ -26,8 +26,7 @@ type Root struct {
 }
 
 type Root_Subnode struct {
-	XMLName xml.Name ´xml:"subnode"´
-	Content string   ´xml:",innerxml"´
+	Content string ´xml:",innerxml"´
 }
 `)
 }
@@ -51,8 +50,7 @@ type Root struct {
 }
 
 type Root_Name struct {
-	XMLName xml.Name ´xml:"name"´
-	Content string   ´xml:",innerxml"´
+	Content string ´xml:",innerxml"´
 }
 `)
 }
@@ -62,7 +60,7 @@ func TestNameSubstituteIsUnique(t *testing.T) {
 <?xml version="1.0" encoding="UTF-8"?>
 <root name="John">
 	<name>this node is also name</name>
-	<name_>we use the trailing underscore ourselves</name_>
+	<name_ a="we use the trailing underscore ourselves"/>
 </root>
 `,
 		`
@@ -78,13 +76,11 @@ type Root struct {
 }
 
 type Root_Name struct {
-	XMLName xml.Name ´xml:"name"´
-	Content string   ´xml:",innerxml"´
+	Content string ´xml:",innerxml"´
 }
 
 type Root_Name_ struct {
-	XMLName xml.Name ´xml:"name_"´
-	Content string   ´xml:",innerxml"´
+	A string ´xml:"a,attr"´
 }
 `)
 }
@@ -108,14 +104,12 @@ type Content struct {
 }
 
 type Content_Content struct {
-	XMLName   xml.Name                ´xml:"content"´
 	Content   string                  ´xml:",innerxml"´
 	Content_  string                  ´xml:"content,attr"´
 	Content__ Content_Content_Content ´xml:"content"´
 }
 
 type Content_Content_Content struct {
-	XMLName xml.Name ´xml:"content"´
 }
 `)
 }
@@ -135,6 +129,11 @@ func TestMultipleXMLsAreCombined(t *testing.T) {
 </a>
 `, `
 <?xml version="1.0" encoding="UTF-8"?>
+<a>
+	<sub>content</sub>
+</a>
+`, `
+<?xml version="1.0" encoding="UTF-8"?>
 <b/>
 `,
 	},
@@ -150,7 +149,7 @@ type A struct {
 }
 
 type A_Sub struct {
-	XMLName xml.Name ´xml:"sub"´
+	Content string ´xml:",innerxml"´
 }
 
 type B struct {
@@ -163,8 +162,8 @@ func TestAttributesAndNodesAreSorted(t *testing.T) {
 	checkXML(t, `
 <?xml version="1.0" encoding="UTF-8"?>
 <root b="b" a="a">
-	<y/>
-	<x/>
+	<y yy="yy"/>
+	<x xx="xx"/>
 </root>
 `,
 		`
@@ -181,11 +180,56 @@ type Root struct {
 }
 
 type Root_X struct {
-	XMLName xml.Name ´xml:"x"´
+	Xx string ´xml:"xx,attr"´
 }
 
 type Root_Y struct {
-	XMLName xml.Name ´xml:"y"´
+	Yy string ´xml:"yy,attr"´
+}
+`)
+}
+
+func TestNodeTypesAreDeduplicated(t *testing.T) {
+	checkXML(t, `
+<?xml version="1.0" encoding="UTF-8"?>
+<root>
+	<a name="Name"/>
+	<b name="Name"/>
+	<c name="Name"/>
+	<d>
+		<e name="Name"/>
+	</d>
+	<f>
+		<g name="1"/>
+		<g name="2"/>
+		<g name="3"/>
+	</f>
+</root>
+`,
+		`
+package main
+
+import "encoding/xml"
+
+type Root struct {
+	XMLName xml.Name ´xml:"root"´
+	A       Root_A   ´xml:"a"´
+	B       Root_A   ´xml:"b"´
+	C       Root_A   ´xml:"c"´
+	D       Root_D   ´xml:"d"´
+	F       Root_F   ´xml:"f"´
+}
+
+type Root_A struct {
+	Name string ´xml:"name,attr"´
+}
+
+type Root_D struct {
+	E Root_A ´xml:"e"´
+}
+
+type Root_F struct {
+	G []Root_A ´xml:"g"´
 }
 `)
 }

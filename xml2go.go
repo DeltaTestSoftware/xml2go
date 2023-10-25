@@ -166,19 +166,24 @@ func (c *XMLConverter) GenerateGoCodeString(packageName string) string {
 }
 
 func (c *XMLConverter) GenerateGoCodeBytes(packageName string) []byte {
-	sortNode(c.root)
 	var buf bytes.Buffer
 	if packageName != "" {
 		fmt.Fprintf(&buf, "package %s\n\nimport \"encoding/xml\"\n\n", packageName)
 	}
-	for _, child := range c.root.Children {
-		c.generate(&buf, child)
+
+	root := copyNode(c.root) // Do not sort the original.
+	sortNode(root)
+	knownTypes := map[*NodeDesc]string{}
+	for _, child := range root.Children {
+		c.generate(&buf, child, knownTypes)
 	}
+
 	code, err := format.Source(buf.Bytes())
 	if err != nil {
 		// Panic here, this would be a developer error.
 		panic(err)
 	}
+
 	return code
 }
 
@@ -198,7 +203,20 @@ func (c *XMLConverter) GenerateGoCodeWriter(packageName string, w io.Writer) err
 	return err
 }
 
-func (c *XMLConverter) generate(buf *bytes.Buffer, n *NodeDesc) {
+func (c *XMLConverter) generate(
+	buf *bytes.Buffer,
+	n *NodeDesc,
+	knownTypes map[*NodeDesc]string,
+) {
+	getKnownType := func(n *NodeDesc) (string, bool) {
+		for typ, name := range knownTypes {
+			if sameStructure(n, typ) {
+				return name, true
+			}
+		}
+		return "", false
+	}
+
 	// To not create two structs with the same name (which will be a compile
 	// error), we fully qualify all nodes with their complete hierarchy. For
 	// example these nodes:
@@ -222,7 +240,11 @@ func (c *XMLConverter) generate(buf *bytes.Buffer, n *NodeDesc) {
 
 	// Create the Go struct for this node.
 	fmt.Fprintf(buf, "type %s struct {\n", nodeName)
-	fmt.Fprintf(buf, "\tXMLName xml.Name `xml:\"%s\"`\n", n.Name)
+	isRoot := n.Parent == nil
+	if isRoot {
+		// Only the top-level types have XMLName set.
+		fmt.Fprintf(buf, "\tXMLName xml.Name `xml:\"%s\"`\n", n.Name)
+	}
 
 	// We prevent naming conflicts that can occur when an attribute has the
 	// same name as a node by appending one or more underscores to the
@@ -253,13 +275,20 @@ func (c *XMLConverter) generate(buf *bytes.Buffer, n *NodeDesc) {
 
 	// Write all child nodes. Some node names appear more than once, in that
 	// case we make the struct field a slice.
-	for _, child := range n.Children {
+	skipChildGen := make([]bool, len(n.Children))
+	for i, child := range n.Children {
 		slice := ""
 		if child.IsArray {
 			slice = "[]"
 		}
 		childIdent := uniqueGoIdent(child.Name)
 		childType := nodeName + "_" + goIdent(child.Name)
+		if typeName, ok := getKnownType(child); ok {
+			childType = typeName
+			skipChildGen[i] = true
+		} else {
+			knownTypes[child] = childType
+		}
 		fmt.Fprintf(
 			buf,
 			"\t%s %s%s `xml:\"%s\"`\n",
@@ -269,8 +298,10 @@ func (c *XMLConverter) generate(buf *bytes.Buffer, n *NodeDesc) {
 	fmt.Fprint(buf, "}\n\n")
 
 	// Now create node structs for all the children of this node, recursively.
-	for _, child := range n.Children {
-		c.generate(buf, child)
+	for i, child := range n.Children {
+		if !skipChildGen[i] {
+			c.generate(buf, child, knownTypes)
+		}
 	}
 }
 
@@ -325,7 +356,9 @@ func copyNode(n *NodeDesc) *NodeDesc {
 	m.Children = make([]*NodeDesc, len(n.Children))
 	for i := range m.Children {
 		m.Children[i] = copyNode(n.Children[i])
-		m.Children[i].Parent = m
+		if n.Children[i].Parent != nil {
+			m.Children[i].Parent = m
+		}
 	}
 
 	return m
@@ -369,4 +402,32 @@ func sortNode(n *NodeDesc) {
 	for _, child := range n.Children {
 		sortNode(child)
 	}
+}
+
+func sameStructure(a, b *NodeDesc) bool {
+	if a.HasCharacterData != b.HasCharacterData {
+		return false
+	}
+	if len(a.Attributes) != len(b.Attributes) {
+		return false
+	}
+	for i := range a.Attributes {
+		if a.Attributes[i] != b.Attributes[i] {
+			return false
+		}
+	}
+	if len(a.Children) != len(b.Children) {
+		return false
+	}
+	for i := range a.Children {
+		if a.Children[i].Name != b.Children[i].Name {
+			return false
+		}
+	}
+	for i := range a.Children {
+		if !sameStructure(a.Children[i], b.Children[i]) {
+			return false
+		}
+	}
+	return true
 }
