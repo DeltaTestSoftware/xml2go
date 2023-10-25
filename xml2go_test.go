@@ -159,6 +159,37 @@ type B struct {
 `)
 }
 
+func TestAttributesAndNodesAreSorted(t *testing.T) {
+	checkXML(t, `
+<?xml version="1.0" encoding="UTF-8"?>
+<root b="b" a="a">
+	<y/>
+	<x/>
+</root>
+`,
+		`
+package main
+
+import "encoding/xml"
+
+type Root struct {
+	XMLName xml.Name ´xml:"root"´
+	A       string   ´xml:"a,attr"´
+	B       string   ´xml:"b,attr"´
+	X       Root_X   ´xml:"x"´
+	Y       Root_Y   ´xml:"y"´
+}
+
+type Root_X struct {
+	XMLName xml.Name ´xml:"x"´
+}
+
+type Root_Y struct {
+	XMLName xml.Name ´xml:"y"´
+}
+`)
+}
+
 func checkXML(t *testing.T, input, want string) {
 	t.Helper()
 	checkXMLs(t, []string{input}, want)

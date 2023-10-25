@@ -7,6 +7,7 @@ import (
 	"go/format"
 	"io"
 	"os"
+	"sort"
 	"strings"
 	"unicode"
 )
@@ -165,6 +166,7 @@ func (c *XMLConverter) GenerateGoCodeString(packageName string) string {
 }
 
 func (c *XMLConverter) GenerateGoCodeBytes(packageName string) []byte {
+	sortNode(c.root)
 	var buf bytes.Buffer
 	if packageName != "" {
 		fmt.Fprintf(&buf, "package %s\n\nimport \"encoding/xml\"\n\n", packageName)
@@ -357,4 +359,14 @@ func combineNodes(a, b *NodeDesc) *NodeDesc {
 	}
 
 	return a
+}
+
+func sortNode(n *NodeDesc) {
+	sort.Strings(n.Attributes)
+	sort.Slice(n.Children, func(i, j int) bool {
+		return n.Children[i].Name < n.Children[j].Name
+	})
+	for _, child := range n.Children {
+		sortNode(child)
+	}
 }
