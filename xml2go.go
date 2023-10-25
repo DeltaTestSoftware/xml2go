@@ -96,6 +96,9 @@ func (c *XMLConverter) parse(n node, parent *NodeDesc) *NodeDesc {
 	}
 
 	for _, attr := range n.Attrs {
+		if attr.Value == "" {
+			continue // Skip empty attributes.
+		}
 		name := attr.Name.Local
 		if !child.containsAttribute(name) {
 			child.Attributes = append(child.Attributes, name)
@@ -165,6 +168,16 @@ func (c *XMLConverter) GenerateGoCodeBytes(packageName string) []byte {
 	return code
 }
 
+func (c *XMLConverter) GenerateGoCodeFile(packageName string, path string) error {
+	f, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	return c.GenerateGoCodeWriter(packageName, f)
+}
+
 func (c *XMLConverter) GenerateGoCodeWriter(packageName string, w io.Writer) error {
 	code := c.GenerateGoCodeBytes(packageName)
 	_, err := w.Write(code)
@@ -197,16 +210,31 @@ func (c *XMLConverter) generate(buf *bytes.Buffer, n *NodeDesc) {
 	fmt.Fprintf(buf, "type %s struct {\n", nodeName)
 	fmt.Fprintf(buf, "\tXMLName xml.Name `xml:\"%s\"`\n", n.Name)
 
+	// We prevent naming conflicts that can occur when an attribute has the
+	// same name as a node by appending one or more underscores to the
+	// identifiers.
+	hasName := map[string]bool{}
+	uniqueGoIdent := func(name string) string {
+		id := goIdent(name)
+		for hasName[id] {
+			id += "_"
+		}
+		hasName[id] = true
+		return id
+	}
+
 	if n.HasCharacterData {
-		// NOTE that we always use the name Content for this varialbe. This
-		// might conflict with an existing attribute, we just hope it does not.
-		fmt.Fprint(buf, "\tContent string `xml:\",innerxml\"`\n")
+		// We always call it Content. If an attribute or child node has this
+		// name as well, those will be renamed (because we use uniqueGoIdent).
+		id := uniqueGoIdent("Content")
+		fmt.Fprintf(buf, "\t%s string `xml:\",innerxml\"`\n", id)
 	}
 
 	// Write all attributes as strings. We do not convert to integers here,
 	// that can be done by the user.
 	for _, attr := range n.Attributes {
-		fmt.Fprintf(buf, "\t%s string `xml:\"%s,attr\"`\n", goIdent(attr), attr)
+		id := uniqueGoIdent(attr)
+		fmt.Fprintf(buf, "\t%s string `xml:\"%s,attr\"`\n", id, attr)
 	}
 
 	// Write all child nodes. Some node names appear more than once, in that
@@ -216,8 +244,8 @@ func (c *XMLConverter) generate(buf *bytes.Buffer, n *NodeDesc) {
 		if child.IsArray {
 			slice = "[]"
 		}
-		childIdent := goIdent(child.Name)
-		childType := nodeName + "_" + childIdent
+		childIdent := uniqueGoIdent(child.Name)
+		childType := nodeName + "_" + goIdent(child.Name)
 		fmt.Fprintf(
 			buf,
 			"\t%s %s%s `xml:\"%s\"`\n",
