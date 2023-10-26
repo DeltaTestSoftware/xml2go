@@ -86,23 +86,20 @@ package main
 import "encoding/xml"
 
 type TopLevel struct {
-	XMLName          xml.Name                  `xml:"TopLevel"`
-	Name             string                    `xml:"Name,attr"`
-	NodeWithContent  TopLevel_NodeWithContent  `xml:"nodeWithContent"`
-	ThisHasNoContent TopLevel_ThisHasNoContent `xml:"thisHasNoContent"`
+        XMLName          xml.Name                  `xml:"TopLevel"`
+        Name             string                    `xml:"Name,attr"`
+        NodeWithContent  TopLevel_NodeWithContent  `xml:"nodeWithContent"`
+        ThisHasNoContent TopLevel_ThisHasNoContent `xml:"thisHasNoContent"`
 }
 
 type TopLevel_NodeWithContent struct {
-	XMLName xml.Name `xml:"nodeWithContent"`
-	Content string   `xml:",innerxml"`
+        Content string `xml:",innerxml"`
 }
 
 type TopLevel_ThisHasNoContent struct {
-	XMLName xml.Name                          `xml:"thisHasNoContent"`
-	SubNode TopLevel_ThisHasNoContent_SubNode `xml:"SubNode"`
+        SubNode TopLevel_ThisHasNoContent_SubNode `xml:"SubNode"`
 }
 
 type TopLevel_ThisHasNoContent_SubNode struct {
-	XMLName xml.Name `xml:"SubNode"`
 }
 ```
